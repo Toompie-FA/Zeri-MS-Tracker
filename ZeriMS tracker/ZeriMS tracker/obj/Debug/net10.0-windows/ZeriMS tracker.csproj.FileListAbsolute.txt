@@ -1,0 +1,19 @@
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\bin\Debug\net10.0-windows\ZeriMS tracker.exe
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\bin\Debug\net10.0-windows\ZeriMS tracker.deps.json
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\bin\Debug\net10.0-windows\ZeriMS tracker.runtimeconfig.json
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\bin\Debug\net10.0-windows\ZeriMS tracker.runtimeconfig.dev.json
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\bin\Debug\net10.0-windows\ZeriMS tracker.dll
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\bin\Debug\net10.0-windows\ZeriMS tracker.pdb
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS_tracker.Form1.resources
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.csproj.GenerateResource.cache
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.AssemblyInfoInputs.cache
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.AssemblyInfo.cs
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.csproj.CoreCompileInputs.cache
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.dll
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\refint\ZeriMS tracker.dll
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.pdb
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.genruntimeconfig.cache
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ref\ZeriMS tracker.dll
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS t.B120DED5.Up2Date
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS_tracker.Properties.Resources.resources
