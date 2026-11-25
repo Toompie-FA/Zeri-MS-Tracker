@@ -120,7 +120,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FloralWhite;
             BackgroundImageLayout = ImageLayout.None;
-            ClientSize = new Size(261, 68);
+            ClientSize = new Size(242, 68);
             Controls.Add(button2);
             Controls.Add(button1);
             Controls.Add(label6);

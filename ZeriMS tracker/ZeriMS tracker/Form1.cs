@@ -1,20 +1,25 @@
 namespace ZeriMS_tracker
 {
     using System.Net.Http;
+    using System.Text;
     using System.Text.Json;
     using System.Windows.Forms;
+    using System.Xml.Linq;
 
     public partial class Form1 : Form
     {
         private readonly HttpClient _http;
         private readonly System.Windows.Forms.Timer _timer;
-        private readonly System.Windows.Forms.Timer _BaseTimer;
-
+        private double _lastHealth;
         private bool _GameStart;
         private double _peakMoveSpeed;
         private double _lastgold;
+        private string PlayerRiotID;
         private bool _InBase = false;
-        private bool _DevMode = true; // true = the dev labels are showing
+        private bool _HealthInfluxed;
+        private bool _DevMode = true;
+        private double respawnTimer;
+        // true = the dev labels are showing
 
         public Form1()
         {
@@ -28,6 +33,7 @@ namespace ZeriMS_tracker
                     msg.RequestUri?.Host == "127.0.0.1"
             };
             _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(2) };
+            _timer = new System.Windows.Forms.Timer { Interval = 500 };
             _timer.Tick += Timer_Tick;
         }
 
@@ -37,13 +43,14 @@ namespace ZeriMS_tracker
 
         private async void Timer_Tick(object sender, EventArgs e)
         {
-            label5.Text = $"S: {_timer.Interval}";
             await UpdateMoveSpeedAsync();
         }
         private async Task UpdateMoveSpeedAsync()
         {
-            try
+            bool isDead = false;            
+            //try
             {
+                //get player stats
                 string json = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/activeplayer");
                 using JsonDocument doc = JsonDocument.Parse(json);
 
@@ -54,22 +61,96 @@ namespace ZeriMS_tracker
                 double gold = doc.RootElement
                     .GetProperty("currentGold")
                     .GetDouble();
+                double CurrentHealth = doc.RootElement
+                    .GetProperty("championStats")
+                    .GetProperty("currentHealth")
+                    .GetDouble();
+                double MaxHealth = doc.RootElement
+                    .GetProperty("championStats")
+                    .GetProperty("maxHealth")
+                    .GetDouble();
 
+                try
+                {
+                    PlayerRiotID = doc.RootElement
+                    .GetProperty("riotId")
+                    .GetString();
+                }
+                catch
+                {
+                }
+
+                //checking if dead and then respawn timer
+                string listJson = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/playerlist");
+                using JsonDocument listDoc = JsonDocument.Parse(listJson);
+
+                foreach (JsonElement player in listDoc.RootElement.EnumerateArray())
+                {
+                    if (player.GetProperty("riotId").GetString() == PlayerRiotID)
+                    {
+                        isDead = !player.GetProperty("isDead").GetBoolean();
+                        respawnTimer = player.GetProperty("respawnTimer").GetDouble();
+                    }
+                }
+
+                //get game stats
+                string statsJson = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/gamestats");
+                using JsonDocument statsDoc = JsonDocument.Parse(statsJson);
+
+                double GameTime = statsDoc.RootElement
+                    .GetProperty("gameTime")
+                    .GetDouble();
                 // FIXED: save the gold straight away so an error further down
                 // can't leave _lastgold stuck on an old value
                 double previousGold = _lastgold;
                 _lastgold = gold;
 
-                if (previousGold > gold)
+                try
+                {
+                    _HealthInfluxed = (CurrentHealth - _lastHealth) > MaxHealth * 0.03;
+                }
+                catch
                 {
 
                 }
-                else
+                _lastHealth = CurrentHealth;
+
+                switch (true)
                 {
-                    //_InBase = false;
+                    case true when previousGold > gold:
+                        _InBase = true;
+                        label5.Text = "Gold";
+                        return;
+                    case true when _HealthInfluxed:
+                        _InBase = true;
+                        label5.Text = "Health";
+                        return;
+                    case true when GameTime <= 35:
+                        _InBase = true;
+                        label5.Text = "GameTime";
+                        return;
+                    case true when respawnTimer > 0:
+                        label5.Text = $"{respawnTimer:F1}";
+                        //Thread.Sleep((int)(respawnTimer * 1000));
+                        return;
+                    default:
+                        label5.Text = "nothing";
+                        break;
                 }
 
-                _GameStart = true; // we got data, so a game is running
+                if (_InBase == true)
+                {
+                    if(GameTime > 840)
+                    {
+                        Thread.Sleep(7000);
+                    }
+                    else
+                    {
+                        Thread.Sleep(13000);
+                    }
+                    _InBase = false;
+                }
+
 
                 // FIXED: don't record a peak on the tick where you just bought something
                 if (moveSpeed > _peakMoveSpeed)
@@ -82,19 +163,19 @@ namespace ZeriMS_tracker
 
                 label3.Text = $"LG:{previousGold:F1}";
                 label4.Text = $"CG:{gold:F1}";
-                label6.Text = $"Base: {_InBase}";
+                label6.Text = $"{GameTime}";
             }
-            catch (Exception ex)
+            //catch (Exception ex)
             {
-                _GameStart = false;
-                _InBase = false;          // FIXED: don't stay stuck on a long timer
-                _timer.Interval = 500;    // between games
-                label2.Text = "Waiting"; // or ex.Message while debugging
+                //_GameStart = false;
+                //_InBase = false;    // between games
+                //label2.Text = "Waiting"; // or ex.Message while debugging
             }
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
+            this.TopMost = true;
             // FIXED: use this.Width, because Form1.ActiveForm is null
             // when the form isn't the active window
             if (_DevMode == true)
