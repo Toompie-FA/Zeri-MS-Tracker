@@ -1,0 +1,212 @@
+namespace ZeriMS_tracker
+{
+    using System.Net.Http;
+    using System.Text;
+    using System.Text.Json;
+    using System.Windows.Forms;
+    using System.Xml.Linq;
+
+    public partial class Form1 : Form
+    {
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+        private readonly HttpClient _http;
+        private readonly System.Windows.Forms.Timer _timer;
+        private double _lastHealth;
+        private bool _GameStart;
+        private double _peakMoveSpeed;
+        private double _lastgold;
+        private string _PlayerRiotID;
+        private bool _InBase = false;
+        private bool _HealthInfluxed;
+        private bool _DevMode = true;
+        // true = the dev labels are showing
+        private double _respawnTimer;
+        private int _StartTime = 35;
+        private double _FountainHealing = 0.03;
+        private int _HomeguardUpgradeTime = 840;
+        private int _WalkBackTime = 13000;
+        private int _WalkBackTimeLate = 7000;
+        private bool isDead = false;
+        private double _previousGold;
+        private record GameSnapshot(
+             double _MoveSpeed, double _Gold, double _CurrentHealth,
+             double _MaxHealth, double _GameTime, double _RespawnTimer);
+        private DateTime _ignoreUntil = DateTime.MinValue;
+
+        private void StartHomeguardIgnore(double gameTime)
+        {
+            label5.Text = "Active";
+            _ignoreUntil = DateTime.Now.AddSeconds(gameTime > 840 ? 7 : 13);
+        }
+
+        private bool ShouldIgnoreReadings()
+        {
+            return DateTime.Now < _ignoreUntil;
+        }
+        public Form1()
+        {
+            InitializeComponent();
+
+            // The game's local server uses a self-signed certificate, so accept it
+            // only when the request goes to 127.0.0.1.
+            var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (msg, cert, chain, errors) =>
+                    msg.RequestUri?.Host == "127.0.0.1"
+            };
+            _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(2) };
+            _timer = new System.Windows.Forms.Timer { Interval = 500 };
+            _timer.Tick += Timer_Tick;
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            _timer.Start();
+        }
+
+        private async void Timer_Tick(object sender, EventArgs e)
+        {
+            await UpdateMoveSpeedAsync();
+            bool pHeld = (GetAsyncKeyState((int)Keys.P) & 0x8000) != 0;            
+        }
+        private bool CheckInBase(GameSnapshot data)
+        {
+            //gold stuff
+            _previousGold = _lastgold;
+            _lastgold = data._Gold; 
+            //do the checks
+            bool boughtSomething = _lastgold > data._Gold;
+            _HealthInfluxed = (data._CurrentHealth - _lastHealth) > data._MaxHealth * _FountainHealing;
+            _lastHealth = data._CurrentHealth;
+            bool earlyGame = data._GameTime <= 35;
+
+            return boughtSomething || _HealthInfluxed || earlyGame || _respawnTimer > 0;
+        }
+
+        private async Task<GameSnapshot> GetGameSnapshotAsync()
+        {
+            try
+            {
+                string json = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/activeplayer");
+                using JsonDocument doc = JsonDocument.Parse(json);
+
+                double moveSpeed = doc.RootElement
+                    .GetProperty("championStats")
+                    .GetProperty("moveSpeed")
+                    .GetDouble();
+                double gold = doc.RootElement
+                    .GetProperty("currentGold")
+                    .GetDouble();
+                double CurrentHealth = doc.RootElement
+                    .GetProperty("championStats")
+                    .GetProperty("currentHealth")
+                    .GetDouble();
+                double MaxHealth = doc.RootElement
+                    .GetProperty("championStats")
+                    .GetProperty("maxHealth")
+                    .GetDouble();
+                _PlayerRiotID = doc.RootElement
+                        .GetProperty("riotId")
+                        .GetString();
+
+                //get game time through game stats endpoint, because the activeplayer endpoint doesn't have it
+                string statsJson = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/gamestats");
+                using JsonDocument statsDoc = JsonDocument.Parse(statsJson);
+
+                //checking if dead and then respawn timer
+                string listJson = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/playerlist");
+                using JsonDocument listDoc = JsonDocument.Parse(listJson);
+
+                double _GameTime = statsDoc.RootElement
+                    .GetProperty("gameTime")
+                    .GetDouble();
+
+                foreach (JsonElement player in listDoc.RootElement.EnumerateArray())
+                {
+                    if (player.GetProperty("riotId").GetString() == _PlayerRiotID)
+                    {
+                        isDead = !player.GetProperty("isDead").GetBoolean();
+                        _respawnTimer = player.GetProperty("respawnTimer").GetDouble();
+                    }
+                }
+
+                return new GameSnapshot(moveSpeed, gold, CurrentHealth, MaxHealth, _GameTime, _respawnTimer);
+
+            }
+            catch (Exception ex)
+            {
+                // Handle exceptions (e.g., log them)
+                Console.WriteLine($"Error fetching game snapshot: {ex.Message}");
+                return new GameSnapshot(0, 0, 0, 0, 0, 0);
+            }
+        }
+        private async Task UpdateMoveSpeedAsync()
+        {
+            GameSnapshot data = await GetGameSnapshotAsync();
+            UpdateLabels(data);
+
+            if (CheckInBase(data))
+            {
+                _InBase = true;
+                return;
+            }
+
+            if (_InBase) // you just left base
+            {
+                StartHomeguardIgnore(data._GameTime);
+                _InBase = false;
+            }
+
+            if (ShouldIgnoreReadings() || data._RespawnTimer > 0) return;
+
+            if (data._MoveSpeed > _peakMoveSpeed)
+            {
+                _peakMoveSpeed = data._MoveSpeed;
+                label1.Text = $"PMS: {data._MoveSpeed:F1}";
+            }
+        }
+
+
+        private void UpdateLabels(GameSnapshot data)
+        {
+            label2.Text = $"MS: {data._MoveSpeed:F1}";
+            label3.Text = $"LG:{_previousGold:F1}";
+            label4.Text = $"CG:{data._Gold:F1}";
+            label6.Text = $"{data._GameTime}";
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            this.TopMost = true;
+            if (_DevMode == true)
+            {
+                label3.Visible = false;
+                label4.Visible = false;
+                label5.Visible = false;
+                label6.Visible = false;
+                this.Width = this.Width / 2;
+                _DevMode = false;
+            }
+            else
+            {
+                label3.Visible = true;
+                label4.Visible = true;
+                label5.Visible = true;
+                label6.Visible = true;
+                this.Width = this.Width * 2;
+                _DevMode = true;
+            }
+        }
+
+        private void label3_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+
+        }
+    }
+}
