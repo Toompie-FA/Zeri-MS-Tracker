@@ -8,19 +8,43 @@ namespace ZeriMS_tracker
 
     public partial class Form1 : Form
     {
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
         private readonly HttpClient _http;
         private readonly System.Windows.Forms.Timer _timer;
         private double _lastHealth;
         private bool _GameStart;
         private double _peakMoveSpeed;
         private double _lastgold;
-        private string PlayerRiotID;
+        private string _PlayerRiotID;
         private bool _InBase = false;
         private bool _HealthInfluxed;
         private bool _DevMode = true;
-        private double respawnTimer;
         // true = the dev labels are showing
+        private double _respawnTimer;
+        private int _StartTime = 35;
+        private double _FountainHealing = 0.03;
+        private int _HomeguardUpgradeTime = 840;
+        private int _WalkBackTime = 15000;
+        private int _WalkBackTimeLate = 8000;
+        private bool isDead = false;
+        private double _previousGold;
+        private Size _NormalSize;
+        private record GameSnapshot(
+             double _MoveSpeed, double _Gold, double _CurrentHealth,
+             double _MaxHealth, double _GameTime, double _RespawnTimer);
+        private DateTime _ignoreUntil = DateTime.MinValue;
 
+        private void StartHomeguardIgnore(double gameTime)
+        {
+            label5.Text = "Active";
+            _ignoreUntil = DateTime.Now.AddSeconds(gameTime > 840 ? 8 : 15);
+        }
+
+        private bool ShouldIgnoreReadings()
+        {
+            return DateTime.Now < _ignoreUntil;
+        }
         public Form1()
         {
             InitializeComponent();
@@ -33,24 +57,71 @@ namespace ZeriMS_tracker
                     msg.RequestUri?.Host == "127.0.0.1"
             };
             _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(2) };
-            _timer = new System.Windows.Forms.Timer { Interval = 500 };
+            _timer = new System.Windows.Forms.Timer { Interval = 3000 };
             _timer.Tick += Timer_Tick;
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            ShrinkForm();
+            _timer.Start();
         }
 
         private async void Timer_Tick(object sender, EventArgs e)
         {
+            this.TopMost = true;
             await UpdateMoveSpeedAsync();
-        }
-        private async Task UpdateMoveSpeedAsync()
-        {
-            bool isDead = false;            
-            //try
+            bool pHeld = (GetAsyncKeyState((int)Keys.P) & 0x8000) != 0;
+            if (pHeld == true)
             {
-                //get player stats
+                await Task.Delay(1000);
+                ReturnForm();
+            }
+            else
+            {
+                ShrinkForm();
+            }
+        }
+
+        private void ShrinkForm()
+        {
+            _NormalSize = this.ClientSize;
+            label2.Visible = false;
+            label3.Visible = false;
+            label4.Visible = false;
+            label5.Visible = false;
+            label6.Visible = false;
+            label1.AutoSize = true;
+            label1.Location = new Point(0, 0);
+            this.ClientSize = label1.PreferredSize;
+        }
+
+        private void ReturnForm()
+        {
+            label2.Visible = true;
+            label3.Visible = true;
+            label4.Visible = true;
+            label5.Visible = true;
+            label6.Visible = true;
+            this.ClientSize = _NormalSize;
+        }
+
+        private bool CheckInBase(GameSnapshot data)
+        {
+            _previousGold = _lastgold;                       // last tick's gold
+            bool boughtSomething = _previousGold > data._Gold; // did gold go down?
+            _lastgold = data._Gold;
+            _HealthInfluxed = (data._CurrentHealth - _lastHealth) > data._MaxHealth * _FountainHealing;
+            _lastHealth = data._CurrentHealth;
+            bool earlyGame = data._GameTime <= 35;
+
+            return boughtSomething || _HealthInfluxed || earlyGame || _respawnTimer > 0;
+        }
+
+        private async Task<GameSnapshot> GetGameSnapshotAsync()
+        {
+            try
+            {
                 string json = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/activeplayer");
                 using JsonDocument doc = JsonDocument.Parse(json);
 
@@ -69,133 +140,78 @@ namespace ZeriMS_tracker
                     .GetProperty("championStats")
                     .GetProperty("maxHealth")
                     .GetDouble();
+                _PlayerRiotID = doc.RootElement
+                        .GetProperty("riotId")
+                        .GetString();
 
-                try
-                {
-                    PlayerRiotID = doc.RootElement
-                    .GetProperty("riotId")
-                    .GetString();
-                }
-                catch
-                {
-                }
+                //get game time through game stats endpoint, because the activeplayer endpoint doesn't have it
+                string statsJson = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/gamestats");
+                using JsonDocument statsDoc = JsonDocument.Parse(statsJson);
 
                 //checking if dead and then respawn timer
                 string listJson = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/playerlist");
                 using JsonDocument listDoc = JsonDocument.Parse(listJson);
 
-                foreach (JsonElement player in listDoc.RootElement.EnumerateArray())
-                {
-                    if (player.GetProperty("riotId").GetString() == PlayerRiotID)
-                    {
-                        isDead = !player.GetProperty("isDead").GetBoolean();
-                        respawnTimer = player.GetProperty("respawnTimer").GetDouble();
-                    }
-                }
-
-                //get game stats
-                string statsJson = await _http.GetStringAsync("https://127.0.0.1:2999/liveclientdata/gamestats");
-                using JsonDocument statsDoc = JsonDocument.Parse(statsJson);
-
-                double GameTime = statsDoc.RootElement
+                double _GameTime = statsDoc.RootElement
                     .GetProperty("gameTime")
                     .GetDouble();
-                // FIXED: save the gold straight away so an error further down
-                // can't leave _lastgold stuck on an old value
-                double previousGold = _lastgold;
-                _lastgold = gold;
 
-                try
+                foreach (JsonElement player in listDoc.RootElement.EnumerateArray())
                 {
-                    _HealthInfluxed = (CurrentHealth - _lastHealth) > MaxHealth * 0.03;
-                }
-                catch
-                {
-
-                }
-                _lastHealth = CurrentHealth;
-
-                switch (true)
-                {
-                    case true when previousGold > gold:
-                        _InBase = true;
-                        label5.Text = "Gold";
-                        return;
-                    case true when _HealthInfluxed:
-                        _InBase = true;
-                        label5.Text = "Health";
-                        return;
-                    case true when GameTime <= 35:
-                        _InBase = true;
-                        label5.Text = "GameTime";
-                        return;
-                    case true when respawnTimer > 0:
-                        label5.Text = $"{respawnTimer:F1}";
-                        //Thread.Sleep((int)(respawnTimer * 1000));
-                        return;
-                    default:
-                        label5.Text = "nothing";
-                        break;
-                }
-
-                if (_InBase == true)
-                {
-                    if(GameTime > 840)
+                    if (player.GetProperty("riotId").GetString() == _PlayerRiotID)
                     {
-                        Thread.Sleep(7000);
+                        isDead = !player.GetProperty("isDead").GetBoolean();
+                        _respawnTimer = player.GetProperty("respawnTimer").GetDouble();
                     }
-                    else
-                    {
-                        Thread.Sleep(13000);
-                    }
-                    _InBase = false;
                 }
 
-
-                // FIXED: don't record a peak on the tick where you just bought something
-                if (moveSpeed > _peakMoveSpeed)
-                {
-                    _peakMoveSpeed = moveSpeed;
-                    label1.Text = $"PMS: {moveSpeed:F1}";
-                }
-
-                label2.Text = $"MS: {moveSpeed:F1}";
-
-                label3.Text = $"LG:{previousGold:F1}";
-                label4.Text = $"CG:{gold:F1}";
-                label6.Text = $"{GameTime}";
+                return new GameSnapshot(moveSpeed, gold, CurrentHealth, MaxHealth, _GameTime, _respawnTimer);
             }
-            //catch (Exception ex)
+            catch (Exception ex)
             {
-                //_GameStart = false;
-                //_InBase = false;    // between games
-                //label2.Text = "Waiting"; // or ex.Message while debugging
+                // Handle exceptions (e.g., log them)
+                Console.WriteLine($"Error fetching game snapshot: {ex.Message}");
+                _peakMoveSpeed = 0; // Reset peak move speed on error
+                return new GameSnapshot(0, 0, 0, 0, 0, 0);
+            }
+        }
+        private async Task UpdateMoveSpeedAsync()
+        {
+            GameSnapshot data = await GetGameSnapshotAsync();
+            UpdateLabels(data);
+
+            if (CheckInBase(data))
+            {
+                _InBase = true;
+                return;
+            }
+
+            if (_InBase) // you just left base
+            {
+                StartHomeguardIgnore(data._GameTime);
+                _InBase = false;
+            }
+
+            if (ShouldIgnoreReadings() || data._RespawnTimer > 0) return;
+
+            if (data._MoveSpeed > _peakMoveSpeed)
+            {
+                _peakMoveSpeed = data._MoveSpeed;
+                label1.Text = $"PMS: {data._MoveSpeed:F1}";
             }
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void UpdateLabels(GameSnapshot data)
         {
-            this.TopMost = true;
-            // FIXED: use this.Width, because Form1.ActiveForm is null
-            // when the form isn't the active window
-            if (_DevMode == true)
-            {
-                label3.Visible = false;
-                label4.Visible = false;
-                label5.Visible = false;
-                label6.Visible = false;
-                this.Width = this.Width / 2;
-                _DevMode = false;
-            }
-            else
-            {
-                label3.Visible = true;
-                label4.Visible = true;
-                label5.Visible = true;
-                label6.Visible = true;
-                this.Width = this.Width * 2;
-                _DevMode = true;
-            }
+            label2.Text = $"MS: {data._MoveSpeed:F1}";
+            label3.Text = $"LG:{_previousGold:F1}";
+            label4.Text = $"CG:{data._Gold:F1}";
+            label6.Text = $"{data._GameTime}";
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+
         }
 
         private void label3_Click(object sender, EventArgs e)
@@ -203,10 +219,9 @@ namespace ZeriMS_tracker
 
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        private void label1_Click_1(object sender, EventArgs e)
         {
-            _timer.Start();
+
         }
     }
-
 }
