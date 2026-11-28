@@ -17,3 +17,4 @@ C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj
 C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ref\ZeriMS tracker.dll
 C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS t.B120DED5.Up2Date
 C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS_tracker.Properties.Resources.resources
+C:\Users\flynn\OneDrive\Desktop\Projects\Repos\ZeriMS tracker\ZeriMS tracker\obj\Debug\net10.0-windows\ZeriMS tracker.sourcelink.json

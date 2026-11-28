@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ZeriMS tracker")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7521696142bdb71d8a2bf61da7d36ae6725ec0f8")]
 [assembly: System.Reflection.AssemblyProductAttribute("ZeriMS tracker")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ZeriMS tracker")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
